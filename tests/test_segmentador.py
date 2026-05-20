@@ -185,3 +185,38 @@ class TestRuidoILuminacao:
         # A mudança principal é (3,4), o artefato (2,4) deve ser filtrado
         linhas_3 = [m for m in mudancas if m[0] == 3 and m[1] == 4]
         assert len(linhas_3) == 1
+
+
+class TestDeteccaoRobustaTabuleiroCompleto:
+    def _deslocar(self, img, dx, dy):
+        matriz = np.float32([[1, 0, dx], [0, 1, dy]])
+        return cv2.warpAffine(
+            img,
+            matriz,
+            (img.shape[1], img.shape[0]),
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+
+    def test_deslocamento_global_do_tabuleiro_nao_dispara_lance(self):
+        seg = SegmentadorTabuleiro()
+        ref = _criar_tabuleiro_sintetico(peca_casas={
+            (1, 4): (240, 240, 240),
+            (6, 4): (80, 80, 80),
+            (0, 1): (80, 80, 80),
+        })
+        curr = self._deslocar(ref, 3, -2)
+
+        mudancas, _ = seg.detectar_mudancas_tabuleiro(ref, curr)
+
+        assert mudancas == []
+        assert seg.ultimo_diagnostico.alinhamento_ok is True
+
+    def test_lance_com_pequena_tremida_continua_detectando(self):
+        seg = SegmentadorTabuleiro()
+        ref = _criar_tabuleiro_sintetico(peca_casas={(1, 4): (240, 240, 240)})
+        curr = _criar_tabuleiro_sintetico(peca_casas={(3, 4): (240, 240, 240)})
+        curr = self._deslocar(curr, 3, -2)
+
+        mudancas, _ = seg.detectar_mudancas_tabuleiro(ref, curr)
+
+        assert set(mudancas) == {(1, 4), (3, 4)}

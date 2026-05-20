@@ -1,2 +1,0 @@
-[console_scripts]
-xadrez-sem-barreiras = xadrez_sem_barreiras.app:main

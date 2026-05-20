@@ -1,67 +1,67 @@
 (function () {
     "use strict";
 
-    const socket = io();
+    const socket = typeof io === "function" ? io() : null;
 
-    // Elementos de fase
-    const phaseSelect = document.getElementById("phaseSelect");
-    const phaseFeed = document.getElementById("phaseFeed");
-    const cameraSelect = document.getElementById("cameraSelect");
-    const btnSelectCamera = document.getElementById("btnSelectCamera");
+    const $ = (id) => document.getElementById(id);
 
-    // Video
-    const videoFeed = document.getElementById("videoFeed");
-    const videoWrapper = document.getElementById("videoWrapper");
-    const overlay = document.getElementById("overlay");
-    const overlayContent = document.getElementById("overlayContent");
-    const overlayText = document.getElementById("overlayText");
-    const overlayHint = document.getElementById("overlayHint");
-    const crosshairCursor = document.getElementById("crosshairCursor");
-    const markersContainer = document.getElementById("markersContainer");
+    const phaseSelect = $("phaseSelect");
+    const phaseFeed = $("phaseFeed");
+    const cameraSelect = $("cameraSelect");
+    const btnSelectCamera = $("btnSelectCamera");
 
-    // Mascara
-    const maskFeed = document.getElementById("maskFeed");
-    const maskWrapper = document.getElementById("maskWrapper");
-    const btnToggleMask = document.getElementById("btnToggleMask");
-    let showMask = false;
+    const videoFeed = $("videoFeed");
+    const videoWrapper = $("videoWrapper");
+    const overlay = $("overlay");
+    const overlayContent = $("overlayContent");
+    const overlayText = $("overlayText");
+    const overlayHint = $("overlayHint");
+    const crosshairCursor = $("crosshairCursor");
+    const markersContainer = $("markersContainer");
 
-    // Controles por fase
-    const controlsPreCal = document.getElementById("controlsPreCal");
-    const controlsCalibrating = document.getElementById("controlsCalibrating");
-    const controlsPostCal = document.getElementById("controlsPostCal");
-    const controlsTracking = document.getElementById("controlsTracking");
+    const maskFeed = $("maskFeed");
+    const maskWrapper = $("maskWrapper");
+    const btnToggleMask = $("btnToggleMask");
 
-    const btnCalibrate = document.getElementById("btnCalibrate");
-    const calibrationStepInfo = document.getElementById("calibrationStepInfo");
-    const btnUndoPoint = document.getElementById("btnUndoPoint");
-    const btnResetCalibration = document.getElementById("btnResetCalibration");
-    const btnSaveRef = document.getElementById("btnSaveRef");
-    const btnCalibrateAgain = document.getElementById("btnCalibrateAgain");
-    const btnStopTrack = document.getElementById("btnStopTrack");
-    const btnVoice = document.getElementById("btnVoice");
-    const btnVoiceConfig = document.getElementById("btnVoiceConfig");
-    const btnUndoMove = document.getElementById("btnUndoMove");
-    const btnResetGame = document.getElementById("btnResetGame");
+    const controlsPreCal = $("controlsPreCal");
+    const controlsCalibrating = $("controlsCalibrating");
+    const controlsPostCal = $("controlsPostCal");
+    const controlsTracking = $("controlsTracking");
 
-    // Modal calibracao
-    const calibrationModal = document.getElementById("calibrationModal");
-    const btnManual = document.getElementById("btnManual");
-    const btnAuto = document.getElementById("btnAuto");
-    const btnCancelModal = document.getElementById("btnCancelModal");
+    const btnCalibrate = $("btnCalibrate");
+    const calibrationStepInfo = $("calibrationStepInfo");
+    const btnUndoPoint = $("btnUndoPoint");
+    const btnResetCalibration = $("btnResetCalibration");
+    const btnSaveRef = $("btnSaveRef");
+    const btnCalibrateAgain = $("btnCalibrateAgain");
+    const btnStopTrack = $("btnStopTrack");
+    const btnVoice = $("btnVoice");
+    const btnVoiceConfig = $("btnVoiceConfig");
+    const btnUndoMove = $("btnUndoMove");
+    const btnResetGame = $("btnResetGame");
 
-    // Modal voz
-    const voiceModal = document.getElementById("voiceModal");
-    const cbVoiceActive = document.getElementById("cbVoiceActive");
-    const cbPhonetic = document.getElementById("cbPhonetic");
-    const voiceSlider = document.getElementById("voiceSlider");
-    const voiceSpeedValue = document.getElementById("voiceSpeedValue");
-    const btnTestVoice = document.getElementById("btnTestVoice");
-    const btnCloseVoice = document.getElementById("btnCloseVoice");
+    const calibrationModal = $("calibrationModal");
+    const btnManual = $("btnManual");
+    const btnAuto = $("btnAuto");
+    const btnCancelModal = $("btnCancelModal");
 
-    // Status
-    const history = document.getElementById("history");
-    const historyList = document.getElementById("historyList");
-    const alertsDiv = document.getElementById("alerts");
+    const voiceModal = $("voiceModal");
+    const cbVoiceActive = $("cbVoiceActive");
+    const cbPhonetic = $("cbPhonetic");
+    const voiceSlider = $("voiceSlider");
+    const voiceSpeedValue = $("voiceSpeedValue");
+    const btnTestVoice = $("btnTestVoice");
+    const btnCloseVoice = $("btnCloseVoice");
+
+    const history = $("history");
+    const historyList = $("historyList");
+    const alertsDiv = $("alerts");
+    const statusCamera = $("statusCamera");
+    const statusCalibrated = $("statusCalibrated");
+    const statusTracking = $("statusTracking");
+    const statusVoice = $("statusVoice");
+    const fenText = $("fenText");
+    const turnText = $("turnText");
 
     let calibrating = false;
     let calibrationMode = "";
@@ -74,31 +74,49 @@
     let phonetic = false;
     let historico = [];
     let markerPositions = [];
+    let showMask = false;
+    let selectedCamera = "Aguardando";
+    let trackingStatusLabel = null;
 
-    // ----- Cameras -----
-    async function loadCameras() {
+    async function api(url, options) {
+        const res = await fetch(url, options || {});
+        let data = {};
         try {
-            const res = await fetch("/api/cameras");
-            const data = await res.json();
+            data = await res.json();
+        } catch (_) {
+            data = {};
+        }
+        if (!res.ok || data.ok === false) {
+            throw new Error(data.error || "Não foi possível concluir a ação.");
+        }
+        return data;
+    }
+
+    async function loadCameras() {
+        cameraSelect.innerHTML = '<option value="">Procurando câmeras...</option>';
+        btnSelectCamera.disabled = true;
+        try {
+            const data = await api("/api/cameras");
             cameraSelect.innerHTML = "";
 
-            if (data.cameras.length === 0) {
-                cameraSelect.innerHTML = '<option value="">Nenhuma camera encontrada</option>';
-                btnSelectCamera.disabled = true;
+            if (!data.cameras || data.cameras.length === 0) {
+                cameraSelect.innerHTML = '<option value="">Nenhuma câmera encontrada</option>';
+                showAlert("Nenhuma câmera encontrada. Verifique a conexão e recarregue a página.", "error");
                 return;
             }
 
             data.cameras.forEach(function (cam) {
                 const opt = document.createElement("option");
                 opt.value = cam.index;
-                var label = cam.name + " (" + cam.width + "x" + cam.height + ")";
-                opt.textContent = label;
+                opt.textContent = `${cam.name || "Câmera " + cam.index} (${cam.width || "?"}x${cam.height || "?"})`;
                 cameraSelect.appendChild(opt);
             });
 
             btnSelectCamera.disabled = false;
+            showAlert(`${data.cameras.length} câmera(s) encontrada(s).`, "info");
         } catch (err) {
-            showAlert("Erro ao carregar cameras", "error");
+            cameraSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+            showAlert(err.message || "Erro ao carregar câmeras.", "error");
         }
     }
 
@@ -106,37 +124,37 @@
         const idx = cameraSelect.value;
         if (idx === "") return;
 
+        setButtonBusy(btnSelectCamera, true, "Abrindo...");
         try {
-            const res = await fetch("/api/select_camera", {
+            const data = await api("/api/select_camera", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ index: parseInt(idx) }),
+                body: JSON.stringify({ index: parseInt(idx, 10) }),
             });
-            const data = await res.json();
-
-            if (data.ok) {
-                phaseSelect.style.display = "none";
-                phaseFeed.style.display = "flex";
-                showPhase("preCal");
-                videoFeed.src = "/video_feed?t=" + Date.now();
-                showAlert("Camera " + idx + " ativa", "success");
-                loadStatus();
-            }
+            selectedCamera = data.info && data.info.name ? data.info.name : `Câmera ${idx}`;
+            phaseSelect.style.display = "none";
+            phaseFeed.style.display = "grid";
+            videoFeed.src = `/video_feed?t=${Date.now()}`;
+            showPhase("preCal");
+            showAlert(`${selectedCamera} ativa.`, "success");
+            await loadStatus();
+            await loadBoard();
         } catch (err) {
-            showAlert("Erro de conexao", "error");
+            showAlert(err.message, "error");
+        } finally {
+            setButtonBusy(btnSelectCamera, false, "Selecionar");
         }
     });
 
-    // ----- Fases -----
     function showPhase(phase) {
         controlsPreCal.style.display = phase === "preCal" ? "flex" : "none";
         controlsCalibrating.style.display = phase === "calibrating" ? "flex" : "none";
         controlsPostCal.style.display = phase === "postCal" ? "flex" : "none";
         controlsTracking.style.display = phase === "tracking" ? "flex" : "none";
-        history.style.display = (phase === "tracking") ? "" : "none";
+        history.style.display = phase === "tracking" ? "" : "none";
+        updateStatusCards();
     }
 
-    // ----- Calibracao -----
     btnCalibrate.addEventListener("click", function () {
         calibrationModal.style.display = "flex";
     });
@@ -155,12 +173,13 @@
         calibrationModal.style.display = "none";
     });
 
-    function startCalibration(modo) {
+    async function startCalibration(modo) {
         calibrating = true;
         calibrationMode = modo;
         clickCount = 0;
         markerPositions = [];
         markersContainer.innerHTML = "";
+        referenceSaved = false;
 
         overlay.classList.add("active");
         showPhase("calibrating");
@@ -168,129 +187,120 @@
 
         if (modo === "manual") {
             overlayContent.style.display = "block";
-            overlayText.textContent = "Calibracao Manual";
-            overlayHint.textContent = "Clique nos 4 cantos do tabuleiro";
+            overlayText.textContent = "Calibração manual";
+            overlayHint.textContent = "Clique nos quatro cantos do tabuleiro, em qualquer ordem.";
             crosshairCursor.style.display = "block";
         } else {
-            overlayContent.style.display = "none";
-            doAutoCalibration();
+            overlayContent.style.display = "block";
+            overlayText.textContent = "Calibração automática";
+            overlayHint.textContent = "Tentando localizar o tabuleiro...";
+            crosshairCursor.style.display = "none";
         }
 
-        fetch("/api/calibration/start", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ modo: modo }),
-        });
+        try {
+            await api("/api/calibration/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ modo: modo }),
+            });
+            if (modo === "auto") {
+                await doAutoCalibration();
+            }
+        } catch (err) {
+            cancelCalibration(false);
+            showAlert(err.message, "error");
+        }
     }
 
     function updateCalibrationInfo() {
-        calibrationStepInfo.textContent = "Ponto " + clickCount + " de 4";
+        calibrationStepInfo.textContent = `Ponto ${clickCount} de 4`;
     }
 
     videoWrapper.addEventListener("mousemove", function (e) {
         if (!calibrating || calibrationMode !== "manual") return;
-
         const feedRect = videoFeed.getBoundingClientRect();
-
-        if (
-            e.clientX < feedRect.left ||
-            e.clientX > feedRect.right ||
-            e.clientY < feedRect.top ||
-            e.clientY > feedRect.bottom
-        ) {
+        if (!isInside(e, feedRect)) {
             crosshairCursor.style.display = "none";
             return;
         }
-
         crosshairCursor.style.display = "block";
-        const x = e.clientX - feedRect.left;
-        const y = e.clientY - feedRect.top;
-        crosshairCursor.style.left = x + "px";
-        crosshairCursor.style.top = y + "px";
+        crosshairCursor.style.left = `${e.clientX - feedRect.left}px`;
+        crosshairCursor.style.top = `${e.clientY - feedRect.top}px`;
     });
 
     videoWrapper.addEventListener("mouseleave", function () {
         crosshairCursor.style.display = "none";
     });
 
-    videoWrapper.addEventListener("click", function (e) {
-        if (!calibrating || calibrationMode !== "manual") return;
-
+    videoWrapper.addEventListener("click", async function (e) {
+        if (!calibrating || calibrationMode !== "manual" || clickCount >= 4) return;
         const feedRect = videoFeed.getBoundingClientRect();
-
-        if (
-            e.clientX < feedRect.left ||
-            e.clientX > feedRect.right ||
-            e.clientY < feedRect.top ||
-            e.clientY > feedRect.bottom
-        ) {
-            return;
-        }
+        if (!isInside(e, feedRect)) return;
 
         const clickX = e.clientX - feedRect.left;
         const clickY = e.clientY - feedRect.top;
+        const naturalWidth = videoFeed.naturalWidth || feedRect.width;
+        const naturalHeight = videoFeed.naturalHeight || feedRect.height;
+        const realX = Math.round(clickX * (naturalWidth / feedRect.width));
+        const realY = Math.round(clickY * (naturalHeight / feedRect.height));
 
-        const scaleX = videoFeed.naturalWidth / feedRect.width;
-        const scaleY = videoFeed.naturalHeight / feedRect.height;
-        const realX = Math.round(clickX * scaleX);
-        const realY = Math.round(clickY * scaleY);
-
-        fetch("/api/calibration/manual_click", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ x: realX, y: realY }),
-        });
-
-        clickCount++;
-        markerPositions.push({ x: clickX, y: clickY });
-        renderMarkers();
-        updateCalibrationInfo();
-
-        if (clickCount >= 4) {
-            setTimeout(function () {
-                finishCalibration("Calibracao manual concluida!", "success");
-            }, 500);
+        try {
+            const data = await api("/api/calibration/manual_click", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ x: realX, y: realY }),
+            });
+            clickCount = data.count || clickCount + 1;
+            markerPositions.push({ x: clickX, y: clickY });
+            renderMarkers();
+            updateCalibrationInfo();
+            if (data.complete) {
+                finishCalibration("Calibração concluída!", "success");
+            }
+        } catch (err) {
+            showAlert(err.message, "error");
         }
     });
 
+    function isInside(event, rect) {
+        return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+    }
+
     function renderMarkers() {
         markersContainer.innerHTML = "";
-        for (let i = 0; i < markerPositions.length; i++) {
-            addCrosshairMarker(markerPositions[i].x, markerPositions[i].y, i + 1);
-        }
+        markerPositions.forEach(function (pos, i) {
+            addCrosshairMarker(pos.x, pos.y, i + 1);
+        });
     }
 
     function addCrosshairMarker(x, y, num) {
         const marker = document.createElement("div");
         marker.className = "calibration-marker";
-        marker.style.left = x + "px";
-        marker.style.top = y + "px";
-
-        marker.innerHTML =
-            '<div class="line-h"></div>' +
-            '<div class="line-v"></div>' +
-            '<div class="dot"></div>' +
-            '<div class="label">' + num + '</div>';
-
+        marker.style.left = `${x}px`;
+        marker.style.top = `${y}px`;
+        marker.innerHTML = '<div class="line-h"></div><div class="line-v"></div><div class="dot"></div><div class="label">' + num + '</div>';
         markersContainer.appendChild(marker);
     }
 
-    btnUndoPoint.addEventListener("click", function () {
+    btnUndoPoint.addEventListener("click", async function () {
         if (!calibrating || clickCount === 0) return;
-
-        fetch("/api/calibration/undo_point", { method: "POST" });
-
-        markerPositions.pop();
-        clickCount--;
-        renderMarkers();
-        updateCalibrationInfo();
+        try {
+            const data = await api("/api/calibration/undo_point", { method: "POST" });
+            clickCount = data.count || 0;
+            markerPositions.pop();
+            renderMarkers();
+            updateCalibrationInfo();
+        } catch (err) {
+            showAlert(err.message, "error");
+        }
     });
 
     btnResetCalibration.addEventListener("click", function () {
-        cancelCalibration();
+        cancelCalibration(true);
     });
 
     function finishCalibration(msg, type) {
+        if (!calibrating && calibrated) return;
         overlay.classList.remove("active");
         overlayContent.style.display = "none";
         crosshairCursor.style.display = "none";
@@ -303,8 +313,10 @@
         loadStatus();
     }
 
-    function cancelCalibration() {
-        fetch("/api/calibration/cancel", { method: "POST" });
+    async function cancelCalibration(callServer) {
+        if (callServer) {
+            try { await api("/api/calibration/cancel", { method: "POST" }); } catch (_) {}
+        }
         overlay.classList.remove("active");
         overlayContent.style.display = "none";
         crosshairCursor.style.display = "none";
@@ -312,108 +324,64 @@
         clickCount = 0;
         markerPositions = [];
         markersContainer.innerHTML = "";
-        showPhase("preCal");
+        showPhase(calibrated ? "postCal" : "preCal");
     }
 
     async function doAutoCalibration() {
         try {
-            const res = await fetch("/api/calibration/auto", { method: "POST" });
-            const data = await res.json();
-
-            if (data.ok) {
-                finishCalibration("Calibracao automatica concluida", "success");
-            } else {
-                cancelCalibration();
-                showAlert("Calibracao automatica falhou", "error");
-            }
+            const data = await api("/api/calibration/auto", { method: "POST" });
+            if (data.ok) finishCalibration("Calibração automática concluída.", "success");
         } catch (err) {
-            cancelCalibration();
-            showAlert("Erro na calibracao automatica", "error");
+            await cancelCalibration(true);
+            showAlert(err.message || "Calibração automática falhou.", "error");
         }
     }
 
-    // ----- Pos-calibracao -----
-    btnSaveRef.addEventListener("click", function () {
-        fetch("/api/save_reference", { method: "POST" });
+    btnSaveRef.addEventListener("click", async function () {
+        setButtonBusy(btnSaveRef, true, "Salvando...");
+        try {
+            await api("/api/save_reference", { method: "POST" });
+            showAlert("Rastreio iniciado. Mantenha o tabuleiro parado até a referência ser salva.", "info");
+        } catch (err) {
+            showAlert(err.message, "error");
+        } finally {
+            setButtonBusy(btnSaveRef, false, "Salvar referência");
+        }
     });
 
-    btnCalibrateAgain.addEventListener("click", function () {
+    btnCalibrateAgain.addEventListener("click", async function () {
+        try { await api("/api/calibration/reset_points", { method: "POST" }); } catch (_) {}
         calibrated = false;
         referenceSaved = false;
-        // Limpa pontos no servidor para voltar a imagem original da camera
-        fetch("/api/calibration/reset_points", { method: "POST" });
+        tracking = false;
         showPhase("preCal");
-        showAlert("Pronto para recalibrar", "info");
+        showAlert("Pronto para recalibrar.", "info");
     });
 
-    // ----- Mascara de diferenca -----
     btnToggleMask.addEventListener("click", function () {
         showMask = !showMask;
         maskWrapper.style.display = showMask ? "" : "none";
-        btnToggleMask.textContent = showMask ? "Esconder mascara" : "Mascara";
-        if (showMask) {
-            maskFeed.src = "/video_feed/mask?t=" + Date.now();
-        } else {
-            maskFeed.src = "";
+        btnToggleMask.textContent = showMask ? "Esconder máscara" : "Máscara";
+        maskFeed.src = showMask ? `/video_feed/mask?t=${Date.now()}` : "";
+    });
+
+    btnStopTrack.addEventListener("click", async function () {
+        try {
+            await api("/api/tracking/stop", { method: "POST" });
+        } catch (err) {
+            showAlert(err.message, "error");
         }
     });
 
-    // ----- Rastreio -----
-    socket.on("tracking_status", function (data) {
-        if (data.status === "reference_saved") {
-            referenceSaved = true;
-            showAlert("Referencia salva! Faca seu lance.", "success");
-            tracking = true;
-            showPhase("tracking");
-            loadStatus();
-        } else if (data.status === "reference_needed") {
-            referenceSaved = false;
-            showAlert("Referencia limpa. Reposicione e salve novamente.", "info");
-        } else if (data.status === "started") {
-            tracking = true;
-            showAlert("Rastreio iniciado!", "success");
-            showPhase("tracking");
-        } else if (data.status === "stopped") {
-            tracking = false;
-            showAlert("Rastreio parado.", "info");
-            showPhase("postCal");
-        }
-    });
-
-    btnStopTrack.addEventListener("click", function () {
-        fetch("/api/tracking/stop", { method: "POST" });
-    });
-
-    // ----- Voz -----
-    btnVoice.addEventListener("click", function () {
-        fetch("/api/voice/toggle", { method: "POST" });
-    });
-
-    socket.on("voice_toggled", function (data) {
-        voiceActive = data.ativo;
-        btnVoice.textContent = voiceActive ? "Voz: ON" : "Voz: OFF";
-        cbVoiceActive.checked = voiceActive;
-        if (!voiceActive && "speechSynthesis" in window) {
-            window.speechSynthesis.cancel();
-        }
-    });
-
-    socket.on("voice_config_updated", function (data) {
-        voiceActive = data.ativo;
-        voiceSpeed = data.velocidade;
-        phonetic = data.fonetica;
-        btnVoice.textContent = voiceActive ? "Voz: ON" : "Voz: OFF";
-        cbVoiceActive.checked = voiceActive;
-        cbPhonetic.checked = phonetic;
-        voiceSlider.value = voiceSpeed;
-        voiceSpeedValue.textContent = voiceSpeed.toFixed(1);
+    btnVoice.addEventListener("click", async function () {
+        try { await api("/api/voice/toggle", { method: "POST" }); } catch (err) { showAlert(err.message, "error"); }
     });
 
     btnVoiceConfig.addEventListener("click", function () {
         cbVoiceActive.checked = voiceActive;
         cbPhonetic.checked = phonetic;
         voiceSlider.value = voiceSpeed;
-        voiceSpeedValue.textContent = voiceSpeed.toFixed(1);
+        voiceSpeedValue.textContent = Number(voiceSpeed).toFixed(1);
         voiceModal.style.display = "flex";
     });
 
@@ -423,9 +391,7 @@
 
     cbVoiceActive.addEventListener("change", function () {
         voiceActive = cbVoiceActive.checked;
-        if (!voiceActive && "speechSynthesis" in window) {
-            window.speechSynthesis.cancel();
-        }
+        if (!voiceActive && "speechSynthesis" in window) window.speechSynthesis.cancel();
         sendVoiceConfig();
     });
 
@@ -440,178 +406,237 @@
         sendVoiceConfig();
     });
 
-    function sendVoiceConfig() {
-        fetch("/api/voice/config", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                ativo: voiceActive,
-                fonetica: phonetic,
-                velocidade: voiceSpeed,
-            }),
-        });
+    async function sendVoiceConfig() {
+        try {
+            await api("/api/voice/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ativo: voiceActive, fonetica: phonetic, velocidade: voiceSpeed }),
+            });
+        } catch (err) {
+            showAlert(err.message, "error");
+        }
     }
 
-    btnTestVoice.addEventListener("click", function () {
-        if (voiceActive) {
-            speakText("Ola, este e um teste de voz.");
-            showAlert("Teste de voz executado", "success");
-        } else {
-            showAlert("Ative a voz primeiro", "error");
+    btnTestVoice.addEventListener("click", async function () {
+        if (!voiceActive) {
+            showAlert("Ative a voz primeiro.", "error");
+            return;
         }
+        speakText("Olá, este é um teste de voz.");
+        try {
+            await api("/api/voice/test", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ frase: "Olá, este é um teste de voz." }),
+            });
+        } catch (_) {}
+        showAlert("Teste de voz executado.", "success");
     });
 
-    // ----- Jogadas -----
-    socket.on("move_detected", function (data) {
-        showAlert("Lance: " + data.lance + " - " + data.mensagem, "success");
-        if (data.historico) {
-            historico = data.historico;
-            renderHistory();
-        }
-        if (data.voz && voiceActive) {
-            speakText(data.voz);
-        } else if (data.voz && !voiceActive) {
-            console.log("[voz] Voz desativada, nao falando:", data.voz);
-        }
+    btnUndoMove.addEventListener("click", async function () {
+        try { await api("/api/undo", { method: "POST" }); } catch (err) { showAlert(err.message, "error"); }
+    });
+
+    btnResetGame.addEventListener("click", async function () {
+        try { await api("/api/reset", { method: "POST" }); } catch (err) { showAlert(err.message, "error"); }
     });
 
     function speakText(texto) {
-        if (!("speechSynthesis" in window)) {
-            console.log("[voz] SpeechSynthesis nao suportado");
-            return;
-        }
-        console.log("[voz] Falando:", texto, "rate:", voiceSpeed);
+        if (!("speechSynthesis" in window)) return;
         window.speechSynthesis.cancel();
-        var utterance = new SpeechSynthesisUtterance(texto);
+        const utterance = new SpeechSynthesisUtterance(texto);
         utterance.lang = "pt-BR";
         utterance.rate = Math.max(0.1, Math.min(10, voiceSpeed));
         utterance.volume = 1.0;
-        utterance.onend = function() { console.log("[voz] Terminou de falar"); };
-        utterance.onerror = function(e) { console.log("[voz] Erro:", e); };
         window.speechSynthesis.speak(utterance);
     }
 
-    socket.on("move_alert", function (data) {
-        showAlert("Lance invalido: " + data.casas.join(", "), "error");
-    });
-
-    socket.on("move_undone", function (data) {
-        showAlert("Lance desfeito: " + data.lance, "info");
-        if (historico.length > 0) historico.pop();
-        renderHistory();
-    });
-
-    btnUndoMove.addEventListener("click", function () {
-        fetch("/api/undo", { method: "POST" });
-    });
-
-    btnResetGame.addEventListener("click", function () {
-        fetch("/api/reset", { method: "POST" });
-    });
-
-    socket.on("game_reset", function (data) {
-        showAlert("Partida reiniciada!", "info");
-        historico = [];
-        renderHistory();
-    });
-
-    socket.on("calibration_status", function (data) {
-        if (data.status === "complete") {
-            finishCalibration("Calibracao concluida!", "success");
-        } else if (data.status === "failed") {
-            cancelCalibration();
-            showAlert("Nao foi possivel detectar o tabuleiro", "error");
-        }
-    });
-
-    // ----- Helpers -----
     function renderHistory() {
-        if (historico.length === 0) {
+        if (!historico || historico.length === 0) {
             historyList.innerHTML = '<p class="history-empty">Nenhuma jogada ainda.</p>';
             return;
         }
 
         historyList.innerHTML = "";
-
         for (let i = 0; i < historico.length; i += 2) {
             const row = document.createElement("div");
-            row.style.display = "flex";
-            row.style.gap = "8px";
-            row.style.padding = "4px 0";
-            row.style.fontSize = "0.85rem";
-
-            const numSpan = document.createElement("span");
-            numSpan.style.color = "#8b949e";
-            numSpan.style.minWidth = "30px";
-            numSpan.style.fontWeight = "600";
-            numSpan.textContent = (Math.floor(i / 2) + 1) + ".";
-            row.appendChild(numSpan);
-
-            const move1 = document.createElement("span");
-            move1.textContent = historico[i].lance;
-            move1.style.color = "#c9d1d9";
-            move1.style.fontFamily = "'Courier New', monospace";
-            row.appendChild(move1);
-
-            if (i + 1 < historico.length) {
-                const move2 = document.createElement("span");
-                move2.textContent = historico[i + 1].lance;
-                move2.style.color = "#c9d1d9";
-                move2.style.fontFamily = "'Courier New', monospace";
-                move2.style.marginLeft = "8px";
-                row.appendChild(move2);
-            }
-
+            row.className = "history-row";
+            row.innerHTML = `<span class="num">${Math.floor(i / 2) + 1}.</span><span>${historico[i].lance}</span><span>${historico[i + 1] ? historico[i + 1].lance : ""}</span>`;
             historyList.appendChild(row);
         }
-
         historyList.scrollTop = historyList.scrollHeight;
     }
 
     async function loadStatus() {
         try {
-            const res = await fetch("/api/status");
-            const data = await res.json();
-            calibrated = data.calibrated;
-            referenceSaved = data.reference_saved;
-            tracking = data.tracking;
-            voiceActive = data.voice_active;
-            voiceSpeed = data.voice_speed;
-            phonetic = data.voice_fonetica;
-            if (data.historico) {
+            const data = await api("/api/status");
+            calibrated = Boolean(data.calibrated);
+            referenceSaved = Boolean(data.reference_saved);
+            tracking = Boolean(data.tracking);
+            voiceActive = Boolean(data.voice_active);
+            voiceSpeed = Number(data.voice_speed || 1.0);
+            phonetic = Boolean(data.voice_fonetica);
+            if (Array.isArray(data.historico)) {
                 historico = data.historico;
                 renderHistory();
             }
-            btnVoice.textContent = voiceActive ? "Voz: ON" : "Voz: OFF";
-            cbVoiceActive.checked = voiceActive;
-            cbPhonetic.checked = phonetic;
-            voiceSlider.value = voiceSpeed;
-            voiceSpeedValue.textContent = voiceSpeed.toFixed(1);
+            syncVoiceControls();
+            updateStatusCards();
 
-            if (tracking) {
-                showPhase("tracking");
-            } else if (calibrated) {
-                showPhase("postCal");
-            } else {
-                showPhase("preCal");
+            if (phaseFeed.style.display !== "none") {
+                if (tracking) showPhase("tracking");
+                else if (calibrated) showPhase("postCal");
+                else showPhase("preCal");
             }
-        } catch (err) {}
+        } catch (_) {}
+    }
+
+    async function loadBoard() {
+        try {
+            const data = await api("/api/board");
+            fenText.textContent = data.fen || "-";
+            turnText.textContent = data.turn === "white" ? "Brancas" : "Pretas";
+        } catch (_) {}
+    }
+
+    function syncVoiceControls() {
+        btnVoice.textContent = voiceActive ? "Voz: ON" : "Voz: OFF";
+        cbVoiceActive.checked = voiceActive;
+        cbPhonetic.checked = phonetic;
+        voiceSlider.value = voiceSpeed;
+        voiceSpeedValue.textContent = voiceSpeed.toFixed(1);
+    }
+
+    function updateStatusCards() {
+        statusCamera.textContent = selectedCamera;
+        statusCalibrated.textContent = calibrated ? "OK" : "Pendente";
+        statusTracking.textContent = tracking ? (trackingStatusLabel || (referenceSaved ? "Ativo" : "Preparando")) : "Parado";
+        statusVoice.textContent = voiceActive ? "ON" : "OFF";
     }
 
     function showAlert(msg, type) {
         const el = document.createElement("div");
-        el.className = "alert " + type;
+        el.className = `alert ${type || "info"}`;
         el.textContent = msg;
         alertsDiv.prepend(el);
         setTimeout(function () {
             el.style.opacity = "0";
             el.style.transition = "opacity 0.5s";
             setTimeout(function () { el.remove(); }, 500);
-        }, 6000);
-        while (alertsDiv.children.length > 5) {
-            alertsDiv.lastChild.remove();
-        }
+        }, 6500);
+        while (alertsDiv.children.length > 5) alertsDiv.lastChild.remove();
     }
 
+    function setButtonBusy(button, busy, text) {
+        button.disabled = busy;
+        button.textContent = text;
+    }
+
+    if (socket) {
+        socket.on("connect", function () { showAlert("Interface conectada ao servidor.", "success"); });
+        socket.on("disconnect", function () { showAlert("Conexão com o servidor perdida.", "error"); });
+        socket.on("tracking_status", function (data) {
+            if (data.status === "reference_saved") {
+                referenceSaved = true;
+                tracking = true;
+                trackingStatusLabel = null;
+                showAlert("Referência estável salva! Faça seu lance.", "success");
+                showPhase("tracking");
+            } else if (data.status === "waiting_stability") {
+                referenceSaved = false;
+                tracking = true;
+                trackingStatusLabel = "Estabilizando";
+            } else if (data.status === "movement_ignored") {
+                tracking = true;
+                showAlert("Movimento ignorado: parece vibração, sombra ou tabuleiro mexendo.", "info");
+            } else if (data.status === "reference_needed") {
+                referenceSaved = false;
+                tracking = true;
+                trackingStatusLabel = "Estabilizando";
+                showAlert("Referência limpa. Mantenha o tabuleiro parado para salvar novamente.", "info");
+            } else if (data.status === "started") {
+                tracking = true;
+                referenceSaved = false;
+                trackingStatusLabel = "Estabilizando";
+                showAlert("Rastreio iniciado. Mantenha o tabuleiro parado para salvar a referência.", "success");
+                showPhase("tracking");
+            } else if (data.status === "stopped") {
+                tracking = false;
+                trackingStatusLabel = null;
+                showAlert("Rastreio parado.", "info");
+                showPhase("postCal");
+            }
+            updateStatusCards();
+        });
+
+        socket.on("voice_toggled", function (data) {
+            voiceActive = Boolean(data.ativo);
+            syncVoiceControls();
+            updateStatusCards();
+            if (!voiceActive && "speechSynthesis" in window) window.speechSynthesis.cancel();
+        });
+
+        socket.on("voice_config_updated", function (data) {
+            voiceActive = Boolean(data.ativo);
+            voiceSpeed = Number(data.velocidade || 1.0);
+            phonetic = Boolean(data.fonetica);
+            syncVoiceControls();
+            updateStatusCards();
+        });
+
+        socket.on("move_detected", function (data) {
+            showAlert(`Lance: ${data.lance} — ${data.mensagem}`, "success");
+            if (data.historico) {
+                historico = data.historico;
+                renderHistory();
+            }
+            if (data.voz && voiceActive) speakText(data.voz);
+            loadBoard();
+        });
+
+        socket.on("move_alert", function (data) {
+            showAlert(`Lance inválido: ${(data.casas || []).join(", ")}`, "error");
+        });
+
+        socket.on("move_undone", function (data) {
+            showAlert(`Lance desfeito: ${data.lance}`, "info");
+            if (historico.length > 0) historico.pop();
+            renderHistory();
+            loadBoard();
+        });
+
+        socket.on("game_reset", function () {
+            showAlert("Partida reiniciada.", "info");
+            historico = [];
+            renderHistory();
+            loadBoard();
+        });
+
+        socket.on("calibration_status", function (data) {
+            if (data.status === "complete") finishCalibration("Calibração concluída!", "success");
+            else if (data.status === "failed") {
+                cancelCalibration(false);
+                showAlert("Não foi possível detectar o tabuleiro.", "error");
+            } else if (data.status === "cancelled") {
+                cancelCalibration(false);
+            }
+        });
+    } else {
+        showAlert("Socket.IO não carregou. A página pode estar offline ou sem acesso ao servidor.", "error");
+    }
+
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+            calibrationModal.style.display = "none";
+            voiceModal.style.display = "none";
+        }
+    });
+
     loadCameras();
+    loadBoard();
+    setInterval(function () {
+        loadStatus();
+        loadBoard();
+    }, 3000);
 })();

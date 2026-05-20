@@ -60,7 +60,7 @@ pip install -r requirements.txt
 ### Interface web
 
 ```bash
-python web/app.py
+python run.py --web
 # Acesse http://localhost:5000
 ```
 
@@ -83,6 +83,11 @@ Se a câmera não abrir, teste outros índices:
 python run.py --camera 0
 python run.py --camera 2
 ```
+
+
+## Interface web atualizada
+
+A interface web agora inclui painel de status, histórico de jogadas, FEN atual, configuração de voz no navegador e botão de máscara de diferença. Depois de calibrar, use **Salvar referência** para iniciar o rastreio automaticamente.
 
 ## Velocidade da voz
 

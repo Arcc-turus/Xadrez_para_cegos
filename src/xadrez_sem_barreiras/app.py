@@ -77,7 +77,7 @@ def executar_projeto(
     jogo = JogoXadrez(fonetica=voz_fonetica)
     voz = LeitorVoz(ativo=voz_ativa, velocidade=voz_velocidade)
 
-    casas_referencia = None
+    tabuleiro_referencia = None
     candidato_mudancas = None
     tempo_inicio_deteccao = 0.0
     cooldown_ativo_ate = 0.0
@@ -107,7 +107,7 @@ def executar_projeto(
                     print("Retorne a peca para a posicao anterior no tabuleiro fisico.")
                     print("Depois pressione 's' para salvar a nova referencia.")
                     print("\a", end="")
-                    casas_referencia = None
+                    tabuleiro_referencia = None
                     candidato_mudancas = None
                     jogo.salvar_estado_fen(str(estado_fen_path))
                 else:
@@ -116,7 +116,7 @@ def executar_projeto(
             elif tecla == ord("r"):
                 print("\n--- REINICIANDO A PARTIDA ---")
                 jogo.reiniciar_jogo()
-                casas_referencia = None
+                tabuleiro_referencia = None
                 candidato_mudancas = None
                 print("Arrume as pecas fisicamente e pressione 's' para comecar novamente.")
                 print("\a", end="")
@@ -138,7 +138,7 @@ def executar_projeto(
             elif tecla == ord("s"):
                 if olho.pontos_origem is not None:
                     tab_ref = olho.retificar_tabuleiro(frame)
-                    casas_referencia = segmentador.fatiar_tabuleiro(tab_ref)
+                    tabuleiro_referencia = tab_ref.copy()
                     cv2.imwrite(str(estado_visual_path), tab_ref)
                     jogo.salvar_estado_fen(str(estado_fen_path))
                     print("Estado visual e FEN salvos em data/.")
@@ -148,17 +148,15 @@ def executar_projeto(
             elif tecla == ord("q"):
                 break
 
-            if casas_referencia is not None:
+            if tabuleiro_referencia is not None:
                 if time.time() < cooldown_ativo_ate:
                     continue
 
                 tab_atual = olho.retificar_tabuleiro(frame)
-                casas_atuais = segmentador.fatiar_tabuleiro(tab_atual)
-
                 tab_com_grade = olho.desenhar_grade_para_teste(tab_atual)
                 cv2.imshow("Grade de Divisao", tab_com_grade)
 
-                mudancas, mapa = segmentador.detectar_mudancas(casas_referencia, casas_atuais)
+                mudancas, mapa = segmentador.detectar_mudancas_tabuleiro(tabuleiro_referencia, tab_atual)
                 cv2.imshow("Mascara de Diferenca", mapa)
 
                 if 2 <= len(mudancas) <= 4:
@@ -178,7 +176,7 @@ def executar_projeto(
                                     voz.falar(frase_voz)
                                 print(jogo.imprimir_tabuleiro())
 
-                                casas_referencia = casas_atuais
+                                tabuleiro_referencia = tab_atual.copy()
                                 cv2.imwrite(str(estado_visual_path), tab_atual)
                                 jogo.salvar_estado_fen(str(estado_fen_path))
                                 print("Referencia atualizada e salva em data/.")
