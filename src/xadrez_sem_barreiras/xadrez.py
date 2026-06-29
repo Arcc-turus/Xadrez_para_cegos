@@ -4,9 +4,13 @@ import chess
 
 
 class JogoXadrez:
-    def __init__(self):
-        # Inicializa o tabuleiro virtual na posição inicial padrão
+    def __init__(self, fonetica=False):
         self.tabuleiro = chess.Board()
+        self.fonetica = fonetica
+        self._alfabeto = {
+            "a": "Alfa", "b": "Bravo", "c": "Charlie", "d": "Delta",
+            "e": "Eco", "f": "Foxtrote", "g": "Golfe", "h": "Hotel",
+        }
 
     def inferir_lance(self, casas_alteradas):
         """
@@ -114,9 +118,11 @@ class JogoXadrez:
         return candidatos[0]
 
     def _frase_voz_para_lance(self, movimento):
-        """Cria a frase falada: nome da peça + casa onde ela parou."""
+        """Cria a frase falada: [peça] [posição atual] [posição final]."""
         peca = self.tabuleiro.piece_at(movimento.from_square)
+        origem = chess.square_name(movimento.from_square)
         destino = chess.square_name(movimento.to_square)
+        origem_falada = self._casa_para_fala(origem)
         destino_falado = self._casa_para_fala(destino)
 
         nomes = {
@@ -132,19 +138,25 @@ class JogoXadrez:
 
         if self.tabuleiro.is_castling(movimento):
             tipo = "pequeno" if chess.square_file(movimento.to_square) > chess.square_file(movimento.from_square) else "grande"
-            return f"Rei para casa {destino_falado}. Roque {tipo}."
+            return f"Rei {origem_falada} {destino_falado}. Roque {tipo}."
 
         if movimento.promotion:
             nome_promocao = nomes.get(movimento.promotion, "peça")
-            return f"Peão para casa {destino_falado}. Promoção para {nome_promocao}."
+            return f"Peão {origem_falada} {destino_falado}. Promoção para {nome_promocao}."
 
-        return f"{nome_peca} para casa {destino_falado}."
+        return f"{nome_peca} {origem_falada} {destino_falado}."
 
     def _casa_para_fala(self, casa):
         """Deixa a casa mais fácil para a voz ler. Ex.: e4 -> e 4."""
-        if len(casa) == 2:
-            return f"{casa[0]} {casa[1]}"
-        return casa
+        if len(casa) != 2:
+            return casa
+        letra = casa[0].lower()
+        numero = casa[1]
+        if self.fonetica:
+            letra_falada = self._alfabeto.get(letra, letra)
+        else:
+            letra_falada = letra
+        return f"{letra_falada} {numero}"
 
     def imprimir_tabuleiro(self):
         """Retorna uma representação em texto do tabuleiro atual para debug no terminal."""

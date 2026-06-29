@@ -1,4 +1,11 @@
+# Dependencias principais do projeto
+# Python recomendado: 3.10 ou superior
+numpy>=1.24,<3
 opencv-python>=4.8
-numpy>=1.24
-python-chess>=1.999
+chess>=1.11.2
+Flask>=3.0
+Flask-SocketIO>=5.3
+simple-websocket>=1.0
+
+# Testes
 pytest>=8.0

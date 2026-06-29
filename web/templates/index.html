@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xadrez Sem Barreiras</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <main class="container">
+        <header class="app-header">
+            <div>
+                <p class="eyebrow">Rastreamento acessível de xadrez</p>
+                <h1>Xadrez Sem Barreiras</h1>
+            </div>
+            <div class="header-badge">Câmera · Voz · FEN</div>
+        </header>
+
+        <section class="phase card hero-card" id="phaseSelect">
+            <div class="step-pill">1</div>
+            <h2>Escolha a câmera</h2>
+            <p class="muted">Conecte sua webcam e selecione o dispositivo para começar a calibração.</p>
+            <label for="cameraSelect">Câmera disponível</label>
+            <div class="select-row">
+                <select id="cameraSelect">
+                    <option value="">Carregando...</option>
+                </select>
+                <button id="btnSelectCamera" class="btn-primary" disabled>Selecionar</button>
+            </div>
+        </section>
+
+        <section class="phase workspace" id="phaseFeed" style="display:none;">
+            <aside class="status-panel card" aria-label="Status do sistema">
+                <div class="status-card">
+                    <span>Câmera</span>
+                    <strong id="statusCamera">Aguardando</strong>
+                </div>
+                <div class="status-card">
+                    <span>Calibração</span>
+                    <strong id="statusCalibrated">Pendente</strong>
+                </div>
+                <div class="status-card">
+                    <span>Rastreio</span>
+                    <strong id="statusTracking">Parado</strong>
+                </div>
+                <div class="status-card">
+                    <span>Voz</span>
+                    <strong id="statusVoice">ON</strong>
+                </div>
+            </aside>
+
+            <div class="video-area" id="videoArea">
+                <div class="video-wrapper" id="videoWrapper">
+                    <img id="videoFeed" src="" alt="Feed de vídeo da câmera" />
+                    <div class="overlay" id="overlay"></div>
+                    <div class="overlay-content" id="overlayContent" style="display:none;">
+                        <p id="overlayText"></p>
+                        <p id="overlayHint"></p>
+                    </div>
+                    <div id="crosshairCursor" class="crosshair-cursor" style="display:none;">
+                        <div class="center-dot"></div>
+                    </div>
+                    <div id="markersContainer"></div>
+                </div>
+
+                <div class="mask-wrapper" id="maskWrapper" style="display:none;">
+                    <h3>Máscara de diferença</h3>
+                    <img id="maskFeed" src="" alt="Máscara de diferença entre estados do tabuleiro" />
+                </div>
+            </div>
+
+            <div class="controls card" id="controlsPreCal">
+                <div>
+                    <h3>2. Calibre o tabuleiro</h3>
+                    <p class="muted">Marque os quatro cantos da área jogável.</p>
+                </div>
+                <button id="btnCalibrate" class="btn-primary">Calibrar</button>
+            </div>
+
+            <div class="controls card" id="controlsCalibrating" style="display:none;">
+                <span id="calibrationStepInfo" class="calibration-info"></span>
+                <button id="btnUndoPoint" class="btn-secondary">Desfazer ponto</button>
+                <button id="btnResetCalibration" class="btn-danger">Cancelar</button>
+            </div>
+
+            <div class="controls card" id="controlsPostCal" style="display:none;">
+                <div>
+                    <h3>3. Salve a referência</h3>
+                    <p class="muted">Deixe as peças paradas e clique para iniciar o rastreio.</p>
+                </div>
+                <button id="btnSaveRef" class="btn-primary">Salvar referência</button>
+                <button id="btnCalibrateAgain" class="btn-secondary">Recalibrar</button>
+            </div>
+
+            <div class="controls card" id="controlsTracking" style="display:none;">
+                <button id="btnStopTrack" class="btn-primary">Parar rastreio</button>
+                <button id="btnVoice" class="btn-secondary">Voz: ON</button>
+                <button id="btnVoiceConfig" class="btn-secondary">Config voz</button>
+                <button id="btnToggleMask" class="btn-secondary">Máscara</button>
+                <button id="btnUndoMove" class="btn-secondary">Desfazer lance</button>
+                <button id="btnResetGame" class="btn-danger">Reiniciar partida</button>
+            </div>
+
+            <section class="board-status card" id="boardStatus">
+                <div>
+                    <span class="muted">Vez</span>
+                    <strong id="turnText">Brancas</strong>
+                </div>
+                <div>
+                    <span class="muted">FEN atual</span>
+                    <p class="fen-text" id="fenText">Carregando...</p>
+                </div>
+            </section>
+
+            <section class="history card" id="history" style="display:none;">
+                <h3>Histórico de jogadas</h3>
+                <div class="history-list" id="historyList">
+                    <p class="history-empty">Nenhuma jogada ainda.</p>
+                </div>
+            </section>
+
+            <div class="alerts" id="alerts" aria-live="polite"></div>
+        </section>
+
+        <div class="modal" id="calibrationModal" style="display:none;">
+            <div class="modal-content">
+                <h2>Tipo de calibração</h2>
+                <p class="muted">A manual é mais confiável. A automática funciona melhor com tabuleiro vazio e boa luz.</p>
+                <div class="modal-buttons">
+                    <button id="btnManual" class="btn-option">Manual</button>
+                    <button id="btnAuto" class="btn-option">Automática</button>
+                </div>
+                <button id="btnCancelModal" class="btn-cancel">Cancelar</button>
+            </div>
+        </div>
+
+        <div class="modal" id="voiceModal" style="display:none;">
+            <div class="modal-content voice-config">
+                <h2>Configuração de voz</h2>
+                <div class="voice-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="cbVoiceActive" checked>
+                        <span>Voz ativa</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="cbPhonetic">
+                        <span>Fonético NATO</span>
+                    </label>
+                </div>
+                <div class="voice-slider-section">
+                    <label for="voiceSlider">Velocidade: <span id="voiceSpeedValue">1.0</span>x</label>
+                    <input type="range" id="voiceSlider" min="1.0" max="4.0" step="0.1" value="1.0">
+                </div>
+                <div class="voice-buttons">
+                    <button id="btnTestVoice" class="btn-option">Testar</button>
+                    <button id="btnCloseVoice" class="btn-cancel">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
