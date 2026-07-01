@@ -84,3 +84,4 @@ class LeitorVoz:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        
