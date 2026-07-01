@@ -596,7 +596,10 @@
         });
 
         socket.on("move_alert", function (data) {
-            showAlert(`Lance inválido: ${(data.casas || []).join(", ")}`, "error");
+            showAlert(`Lance inválido: ${(data.casas || []).join(", ")} — ${data.mensagem}`, "error");
+            if (data.voz && voiceActive) {
+                speakText(data.voz);
+            }
         });
 
         socket.on("move_undone", function (data) {

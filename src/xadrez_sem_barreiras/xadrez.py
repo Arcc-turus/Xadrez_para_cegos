@@ -27,7 +27,7 @@ class JogoXadrez:
             return (
                 None,
                 "São necessárias 2, 3 ou 4 casas alteradas para inferir um lance.",
-                None,
+                "Erro de leitura. Retome as peças.",
             )
 
         casas = [c for c in casas_alteradas if c]
@@ -53,8 +53,9 @@ class JogoXadrez:
             self.tabuleiro.push(movimento_realizado)
             return movimento_realizado.uci(), "Lance válido e registrado!", frase_voz
 
+        casas_faladas = " e ".join([self._casa_para_fala(c) for c in casas])
         casas_txt = ", ".join(casas_alteradas)
-        return None, f"Lance ilegal ou não reconhecido entre as casas: {casas_txt}.", None
+        return None, f"Lance ilegal ou não reconhecido entre as casas: {casas_txt}.", f"Lance ilegal em {casas_faladas}. Retome."
 
     def _candidatos_por_pares(self, casas):
         """Tenta achar um lance legal usando qualquer par de casas detectadas."""
@@ -183,3 +184,4 @@ class JogoXadrez:
     def reiniciar_jogo(self):
         """Reseta o tabuleiro virtual para a posição inicial."""
         self.tabuleiro.reset()
+        

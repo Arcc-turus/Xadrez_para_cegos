@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import time
 from pathlib import Path
-
 import cv2
 
 from .camera import BoardDetector
@@ -205,7 +204,7 @@ def criar_parser() -> argparse.ArgumentParser:
     parser.add_argument("--voz", type=float, default=1.0, help="Velocidade da voz de 1.0 a 4.0 (ex.: 1.5, 2.0, 3.5).")
     parser.add_argument("--voz-af", type=float, nargs="?", const=1.0, default=None,
                         help="Alfabeto fonetico NATO com velocidade opcional. Ex.: --voz-af 2.0")
-    parser.add_argument("--tempo-confirmacao", type=float, default=2.0, help="Tempo em segundos para confirmar movimento estavel.")
+    parser.add_argument("--tempo-confirmacao", type=float, default=0.8, help="Tempo em segundos para confirmar movimento estavel.")
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR, help="Pasta onde salvar FEN e imagem de referencia.")
     parser.add_argument("--posicao-camera", default="brancas_esquerda", help="Orientacao usada pelo tradutor de casas.")
     parser.add_argument("--web", action="store_true", help="Inicia o servidor web em localhost:5000.")

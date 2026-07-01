@@ -180,9 +180,6 @@ def _tracking_loop():
 
         tab_atual = _detector.retificar_tabuleiro(frame)
 
-        # Quando o usuário pede nova referência, não salvamos qualquer frame na
-        # hora. Esperamos alguns frames estáveis para evitar mão/câmera/tabuleiro
-        # mexendo exatamente no momento do clique.
         if not _referencia_salva or tabuleiro_referencia is None:
             tabuleiro_referencia = None
             candidato_mudancas = None
@@ -267,7 +264,7 @@ def _tracking_loop():
             mudancas_ord = sorted(mudancas)
 
             if candidato_mudancas == mudancas_ord:
-                if time.time() - tempo_inicio >= 2.0:
+                if time.time() - tempo_inicio >= 0.8:
                     traduzidas = [_tradutor.para_notacao(l, c) for l, c in mudancas_ord]
                     lance_uci, mensagem, frase_voz = _jogo.inferir_lance(traduzidas)
 
@@ -291,13 +288,16 @@ def _tracking_loop():
                         })
                         if frase_voz and _voz.ativo:
                             _voz.falar(frase_voz)
-                        cooldown_ate = time.time() + 1.0
+                        cooldown_ate = time.time() + 0.5
                     else:
                         socketio.emit("move_alert", {
                             "casas": traduzidas,
                             "mensagem": mensagem,
+                            "voz": frase_voz,
                         })
-                        cooldown_ate = time.time() + 4.0
+                        if frase_voz and _voz.ativo:
+                            _voz.falar(frase_voz)
+                        cooldown_ate = time.time() + 1.5
 
                     candidato_mudancas = None
             else:
@@ -564,7 +564,6 @@ def api_undo():
         _referencia_salva = False
         if _historico:
             _historico.pop()
-        # Salva estado apos desfazer
         _jogo.salvar_estado_fen(str(DATA_DIR / "estado_partida.fen"))
         socketio.emit("move_undone", {"lance": lance, "fen": _jogo.tabuleiro.fen()})
         return jsonify({"ok": True, "lance": lance})
@@ -652,3 +651,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
